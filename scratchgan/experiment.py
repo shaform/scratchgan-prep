@@ -419,7 +419,9 @@ def evaluate_pair(config, batch_size, checkpoint_path, data_dir, dataset,
   mean_gen_prob = 0.0
 
   logging.info("Graph constructed, generating batches.")
-  num_batches = num_examples_for_eval // batch_size + 1
+  num_batches = num_examples_for_eval // batch_size
+  if num_examples_for_eval % batch_size != 0:
+    num_batches += 1
 
   # Restrict the thread pool size to prevent excessive GCU usage on Borg.
   tf_config = tf.ConfigProto()
