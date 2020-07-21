@@ -50,7 +50,7 @@ flags.DEFINE_float("l2_disc", 1e-6, "L2 regularization discriminator.")
 flags.DEFINE_float("disc_dropout", 0.1, "Dropout discriminator")
 flags.DEFINE_integer("trainable_embedding_size", 64,
                      "Size of trainable embedding.")
-flags.DEFINE_bool("use_pretrained_embedding", True, "Use pretrained embedding.")
+flags.DEFINE_bool("use_pretrained_embedding", False, "Use pretrained embedding.")
 flags.DEFINE_integer("num_steps", int(200 * 1000), "Number of training steps.")
 flags.DEFINE_integer("num_disc_updates", 1, "Number of discriminator updates.")
 flags.DEFINE_integer("num_gen_updates", 1, "Number of generator updates.")
