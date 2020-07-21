@@ -58,8 +58,8 @@ Install requirements:
 
 Run training and evaluation jobs:
 
-    python2 -m scratchgan.experiment --mode="train" &
-    python2 -m scratchgan.experiment --mode="evaluate_pair" &
+    python3 -m scratchgan.experiment --mode="train" &
+    python3 -m scratchgan.experiment --mode="evaluate_pair" &
 
 The evaluation code is designed to run in parallel with the training.
 
