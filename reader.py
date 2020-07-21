@@ -29,12 +29,13 @@ from tensorflow.compat.v1.io import gfile
 # lengths: [N, 2] array of int32, such that
 #   lengths[i, 0] is the number of non-pad tokens in sequences[i, :]
 FILENAMES = {
-    "emnlp2017": ("train.json", "valid.json", "test.json"),
+    "emnlp2017-prep": ("train.txt", "valid.txt", "test.txt"),
+    "coco-prep": ("train.txt", "valid.txt", "test.txt"),
 }
 
-# EMNLP2017 sentences have max length 50, add one for a PAD token so that all
+# EMNLP2017 sentences have max length 51, add one for a PAD token so that all
 # sentences end with PAD.
-MAX_TOKENS_SEQUENCE = {"emnlp2017": 52}
+MAX_TOKENS_SEQUENCE = {"emnlp2017-prep": 52, "coco-prep": 38}
 
 UNK = "<unk>"
 PAD = " "
@@ -44,18 +45,15 @@ PAD_INT = 0
 
 def tokenize(sentence):
   """Split a string into words."""
-  return sentence.split(" ") + [PAD]
+  return sentence.strip().split(" ") + [PAD]
 
 
 def _build_vocab(json_data):
   """Builds full vocab from json data."""
   vocab = collections.Counter()
   for sentence in json_data:
-    tokens = tokenize(sentence["s"])
+    tokens = tokenize(sentence)
     vocab.update(tokens)
-    for title in sentence["t"]:
-      title_tokens = tokenize(title)
-      vocab.update(title_tokens)
   # Most common words first.
   count_pairs = sorted(list(vocab.items()), key=lambda x: (-x[1], x[0]))
   words, _ = list(zip(*count_pairs))
@@ -91,13 +89,17 @@ def _integerize(json_data, word_to_id, dataset):
   sequence_lengths = np.zeros(shape=(len(json_data)), dtype=np.int32)
   for i, sentence in enumerate(json_data):
     sequence_i = string_sequence_to_sequence(
-        tokenize(sentence["s"]), word_to_id)
+        tokenize(sentence), word_to_id)
     sequence_lengths[i] = len(sequence_i)
     sequences[i, :sequence_lengths[i]] = np.array(sequence_i)
   return {
       "sequences": sequences,
       "sequence_lengths": sequence_lengths,
   }
+
+
+def read_lines(infile):
+  return [x.strip() for x in infile]
 
 
 def get_raw_data(data_path, dataset, truncate_vocab=20000):
@@ -109,7 +111,7 @@ def get_raw_data(data_path, dataset, truncate_vocab=20000):
   Args:
     data_path: string path to the directory where simple-examples.tgz has been
       extracted.
-    dataset: one of ["emnlp2017"]
+    dataset: one of ["emnlp2017-prep", "coco-prep"]
     truncate_vocab: int, number of words to keep in the vocabulary.
 
   Returns:
@@ -127,12 +129,12 @@ def get_raw_data(data_path, dataset, truncate_vocab=20000):
   train_path = os.path.join(data_path, train_file)
   valid_path = os.path.join(data_path, valid_file)
 
-  with gfile.GFile(train_path, "r") as json_file:
-    json_data_train = json.load(json_file)
-  with gfile.GFile(valid_path, "r") as json_file:
-    json_data_valid = json.load(json_file)
+  with gfile.GFile(train_path, "r") as infile:
+    data_train = read_lines(infile)
+  with gfile.GFile(valid_path, "r") as infile:
+    data_valid = read_lines(infile)
 
-  word_to_id = _build_vocab(json_data_train)
+  word_to_id = _build_vocab(data_train)
   logging.info("Full vocab length: %d", len(word_to_id))
   # Assume the vocab is sorted by frequency.
   word_to_id_truncated = {
@@ -140,8 +142,8 @@ def get_raw_data(data_path, dataset, truncate_vocab=20000):
   }
   logging.info("Truncated vocab length: %d", len(word_to_id_truncated))
 
-  train_data = _integerize(json_data_train, word_to_id_truncated, dataset)
-  valid_data = _integerize(json_data_valid, word_to_id_truncated, dataset)
+  train_data = _integerize(data_train, word_to_id_truncated, dataset)
+  valid_data = _integerize(data_valid, word_to_id_truncated, dataset)
   return train_data, valid_data, word_to_id_truncated
 
 
