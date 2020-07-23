@@ -18,6 +18,7 @@ from __future__ import division
 from __future__ import print_function
 import math
 import os
+import shutil
 from absl import logging
 import numpy as np
 import tensorflow.compat.v1 as tf
@@ -217,14 +218,17 @@ def batch_sequences_to_sentences(sequences, id_to_word):
   return [sequence_to_sentence(sequence, id_to_word) for sequence in sequences]
 
 
-def write_eval_results(checkpoint_dir, all_gen_sentences, checkpoint_name,
-                       mean_train_prob, mean_valid_prob, mean_gen_prob, fid):
+def write_ppl_results(checkpoint_dir, checkpoint_name,
+                       valid_ppl, valid_tokens, test_ppl,
+                       test_tokens, eval_filename=None):
   """Write evaluation results to disk."""
+  if eval_filename is None:
+    eval_filename = 'ppl.csv'
   to_write = ",".join(
       map(str, [
-          checkpoint_name, mean_train_prob, mean_valid_prob, mean_gen_prob, fid
+          checkpoint_name, valid_ppl, valid_tokens, test_ppl, test_tokens
       ]))
-  eval_filepath = os.path.join(checkpoint_dir, EVAL_FILENAME)
+  eval_filepath = os.path.join(checkpoint_dir, eval_filename)
   previous_eval_content = ""
   if gfile.exists(eval_filepath):
     with gfile.GFile(eval_filepath, "r") as f:
@@ -232,13 +236,67 @@ def write_eval_results(checkpoint_dir, all_gen_sentences, checkpoint_name,
   with gfile.GFile(eval_filepath, "w") as f:
     f.write(previous_eval_content + to_write + "\n")
 
-  with gfile.GFile(
-      os.path.join(checkpoint_dir, checkpoint_name + "_sentences.txt"),
-      "w") as f:
-    f.write("\n".join(all_gen_sentences))
+
+def copy_checkpoint(checkpoint_dir,
+                    src_name,
+                    dst_name):
+    for suffix in ('.meta', '.index', '.data-00000-of-00001'):
+        shutil.copy(os.path.join(checkpoint_dir, src_name + suffix),
+                    os.path.join(checkpoint_dir, dst_name + suffix))
 
 
-def maybe_pick_models_to_evaluate(checkpoint_dir):
+def select_ppl_results(checkpoint_dir,
+                       valid_ppl, valid_tokens, test_ppl,
+                       test_tokens, eval_filename=None):
+  """Write evaluation results to disk."""
+  if eval_filename is None:
+    eval_filename = 'ppl.csv'
+  eval_filepath = os.path.join(checkpoint_dir, eval_filename)
+  previous_eval_content = ""
+  if gfile.exists(eval_filepath):
+    with gfile.GFile(eval_filepath, "r") as f:
+      previous_eval_content = f.read()
+
+  best_ppl = None
+  best_checkpoint = None
+  for line in previous_eval_content.strip().split('\n'):
+    fields = line.strip().split(',')
+    if fields:
+      ppl = float(fields[1])
+      if best_ppl is None or ppl < best_ppl:
+        best_ppl = ppl
+        best_checkpoint = fields[0]
+  return best_checkpoint, best_ppl
+
+
+def write_eval_results(checkpoint_dir, all_gen_sentences, checkpoint_name,
+                       mean_train_prob, mean_valid_prob, mean_gen_prob,
+                       fid, eval_filename=None):
+  """Write evaluation results to disk."""
+  if eval_filename is None:
+    eval_filename = EVAL_FILENAME
+  to_write = ",".join(
+      map(str, [
+          checkpoint_name, mean_train_prob, mean_valid_prob, mean_gen_prob, fid
+      ]))
+  eval_filepath = os.path.join(checkpoint_dir, eval_filename)
+  previous_eval_content = ""
+  if gfile.exists(eval_filepath):
+    with gfile.GFile(eval_filepath, "r") as f:
+      previous_eval_content = f.read()
+  with gfile.GFile(eval_filepath, "w") as f:
+    f.write(previous_eval_content + to_write + "\n")
+
+  if all_gen_sentences is not None:
+    with gfile.GFile(
+        os.path.join(checkpoint_dir, checkpoint_name + "_sentences.txt"),
+        "w") as f:
+      f.write("\n".join(all_gen_sentences))
+
+
+def maybe_pick_models_to_evaluate(checkpoint_dir, eval_filename=None):
+  if eval_filename is None:
+    eval_filename = EVAL_FILENAME
   """Pick a checkpoint to evaluate that has not been evaluated already."""
   logging.info("Picking checkpoint to evaluate from %s.", checkpoint_dir)
 
@@ -247,8 +305,8 @@ def maybe_pick_models_to_evaluate(checkpoint_dir):
   logging.info("Found existing checkpoints: %s", filenames)
 
   evaluated_filenames = []
-  if gfile.exists(os.path.join(checkpoint_dir, EVAL_FILENAME)):
-    with gfile.GFile(os.path.join(checkpoint_dir, EVAL_FILENAME), "r") as f:
+  if gfile.exists(os.path.join(checkpoint_dir, eval_filename)):
+    with gfile.GFile(os.path.join(checkpoint_dir, eval_filename), "r") as f:
       evaluated_filenames = [l.strip().split(",")[0] for l in f.readlines()]
     logging.info("Found already evaluated checkpoints: %s", evaluated_filenames)
 
