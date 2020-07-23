@@ -4,4 +4,5 @@ python3 -m scratchgan.experiment \
   --dataset=emnlp2017-prep \
   --data_dir=data/emnlp2017-prep \
   --checkpoint_dir=data/emnlp2017-prep/checkpoints-cfg/ \
-  --trainable_embedding_size=512
+  --trainable_embedding_size=512 \
+  --num_examples_for_eval=10000
