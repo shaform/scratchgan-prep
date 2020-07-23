@@ -93,6 +93,22 @@ def main(_):
         logging.info("No models to evaluate found, sleeping for %d seconds",
                      EVALUATOR_SLEEP_PERIOD)
         time.sleep(EVALUATOR_SLEEP_PERIOD)
+  elif config.mode == "evaluate_ppl":
+    while True:
+      checkpoint_path = utils.maybe_pick_models_to_evaluate(
+          checkpoint_dir=config.checkpoint_dir,
+          eval_filename='ppl.csv')
+      if checkpoint_path:
+        evaluate_ppl(
+            config=config,
+            batch_size=config.batch_size,
+            checkpoint_path=checkpoint_path,
+            data_dir=config.data_dir,
+            dataset=config.dataset)
+      else:
+        logging.info("No models to evaluate found, sleeping for %d seconds",
+                     EVALUATOR_SLEEP_PERIOD)
+        time.sleep(EVALUATOR_SLEEP_PERIOD)
   else:
     raise Exception(
         "Unexpected mode %s, supported modes are \"train\" or \"evaluate_pair\""
@@ -298,6 +314,115 @@ def train(config):
         global_step=global_step)
     logging.info("Saved final model at %s.",
                  tf.train.latest_checkpoint(config.checkpoint_dir))
+
+
+def evaluate_ppl(config, batch_size, checkpoint_path, data_dir, dataset):
+  tf.reset_default_graph()
+  logging.info("Evaluating checkpoint %s.", checkpoint_path)
+  # Build graph.
+  valid_data, test_data, word_to_id = reader.get_valid_data(
+      data_dir, dataset=dataset)
+  id_to_word = {v: k for k, v in word_to_id.items()}
+  vocab_size = len(word_to_id)
+  valid_iterator = reader.full_iterator(raw_data=valid_data, batch_size=batch_size)
+  test_iterator = reader.full_iterator(raw_data=test_data, batch_size=batch_size)
+
+  sequence = tf.placeholder(
+      dtype=tf.int32,
+      shape=[batch_size, reader.MAX_TOKENS_SEQUENCE[dataset]],
+      name="sequence")
+  sequence_length = tf.placeholder(
+      dtype=tf.int32, shape=[batch_size], name="sequence_length")
+  gen_inputs = {
+      "sequence": sequence,
+      "sequence_length": sequence_length,
+  }
+  if config.use_pretrained_embedding:
+    embedding_source = utils.get_embedding_path(config.data_dir, config.dataset)
+    vocab_file = "/tmp/vocab.txt"
+    with gfile.GFile(vocab_file, "w") as f:
+      for i in range(len(id_to_word)):
+        f.write(id_to_word[i] + "\n")
+    logging.info("Temporary vocab file: %s", vocab_file)
+  else:
+    embedding_source = None
+    vocab_file = None
+
+  gen = generators.LSTMGenX(
+      vocab_size=vocab_size,
+      feature_sizes=[config.gen_feature_size] * config.num_layers_gen,
+      max_sequence_length=reader.MAX_TOKENS_SEQUENCE[config.dataset],
+      batch_size=config.batch_size,
+      use_layer_norm=config.layer_norm_gen,
+      trainable_embedding_size=config.trainable_embedding_size,
+      input_dropout=config.gen_input_dropout,
+      output_dropout=config.gen_output_dropout,
+      pad_token=reader.PAD_INT,
+      embedding_source=embedding_source,
+      vocab_file=vocab_file,
+  )
+  outputs = gen(**gen_inputs)
+
+  # Saver.
+  saver = tf.train.Saver()
+
+  logging.info("Graph constructed.")
+
+  # Restrict the thread pool size to prevent excessive GCU usage on Borg.
+  tf_config = tf.ConfigProto()
+  tf_config.intra_op_parallelism_threads = 16
+  tf_config.inter_op_parallelism_threads = 16
+
+  with tf.Session(config=tf_config) as sess:
+
+    # Restore variables from checkpoints.
+    logging.info("Restoring variables.")
+    saver.restore(sess, checkpoint_path)
+
+    tasks = [('valid', valid_iterator),
+             ('test', test_iterator)]
+
+    total_log_prob = {'valid': 0.0, 'test': 0.0}
+    total_tokens = {'valid': 0, 'test': 0}
+    for split, data_iterator in tasks:
+      for i, data_np in enumerate(data_iterator):
+        logging.info("Batch %d", i)
+        feed_dict = {
+            sequence: data_np["sequence"],
+            sequence_length: data_np["sequence_length"],
+        }
+        outputs_np = sess.run(outputs, feed_dict=feed_dict)
+
+        total_log_prob[split] += outputs_np["logprobs"].sum()
+        total_tokens[split] += outputs_np["sequence_length"].sum()
+      total_log_prob[split] /= total_tokens[split]
+
+
+  valid_ppl = np.exp(-total_log_prob['valid'])
+  valid_tokens = total_tokens['valid']
+  test_ppl = np.exp(-total_log_prob['test'])
+  test_tokens = total_tokens['test']
+  cur_checkpoint = os.path.basename(checkpoint_path)
+  utils.write_ppl_results(config.checkpoint_dir,
+                          os.path.basename(checkpoint_path),
+                          valid_ppl,
+                          valid_tokens,
+                          test_ppl,
+                          test_tokens,
+                          eval_filename='ppl.csv')
+  best_checkpoint, best_ppl = utils.select_ppl_results(config.checkpoint_dir,
+                                                       valid_ppl,
+                                                       valid_tokens,
+                                                       test_ppl,
+                                                       test_tokens,
+                                                       eval_filename='ppl.csv')
+
+  if best_checkpoint == cur_checkpoint:
+    print('best checkpoint updated:', best_checkpoint)
+    utils.copy_checkpoint(
+            config.checkpoint_dir,
+            best_checkpoint,
+            'best_checkpoint')
 
 
 def evaluate_pair(config, batch_size, checkpoint_path, data_dir, dataset,
