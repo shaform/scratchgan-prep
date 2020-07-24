@@ -29,13 +29,13 @@ from tensorflow.compat.v1.io import gfile
 # lengths: [N, 2] array of int32, such that
 #   lengths[i, 0] is the number of non-pad tokens in sequences[i, :]
 FILENAMES = {
-    "emnlp2017-prep": ("train.txt", "valid.txt", "test.txt"),
-    "coco-prep": ("train.txt", "valid.txt", "test.txt"),
+    "emnlp2017-raw": ("train.txt", "valid.txt", "test.txt"),
+    "coco-raw": ("train.txt", "valid.txt", "test.txt"),
 }
 
 # EMNLP2017 sentences have max length 51, add one for a PAD token so that all
 # sentences end with PAD.
-MAX_TOKENS_SEQUENCE = {"emnlp2017-prep": 52, "coco-prep": 38}
+MAX_TOKENS_SEQUENCE = {"emnlp2017-raw": 52, "coco-raw": 38}
 
 UNK = "<unk>"
 PAD = " "

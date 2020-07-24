@@ -32,7 +32,7 @@ from scratchgan import losses
 from scratchgan import reader
 from scratchgan import utils
 
-flags.DEFINE_string("dataset", "emnlp2017", "Dataset.")
+flags.DEFINE_string("dataset", "emnlp2017-raw", "Dataset.")
 flags.DEFINE_integer("batch_size", 512, "Batch size")
 flags.DEFINE_string("gen_type", "lstm", "Generator type.")
 flags.DEFINE_string("disc_type", "lstm", "Discriminator type.")
