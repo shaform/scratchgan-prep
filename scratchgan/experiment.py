@@ -305,6 +305,7 @@ def train(config):
             global_step=global_step)
         metrics_np["model_path"] = tf.train.latest_checkpoint(
             config.checkpoint_dir)
+        logging.info('step: %d' % step)
         logging.info(metrics_np)
 
     # After training, export models.
