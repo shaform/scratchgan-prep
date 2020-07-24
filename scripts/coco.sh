@@ -1,6 +1,6 @@
 #!/bin/bash
 python3 -m scratchgan.experiment \
   --mode="train" \
-  --dataset=coco-prep \
-  --data_dir=data/coco-prep \
-  --checkpoint_dir=data/coco-prep/checkpoints/
+  --dataset=coco-raw \
+  --data_dir=data/coco-raw \
+  --checkpoint_dir=data/coco-raw/checkpoints/
