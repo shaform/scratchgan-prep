@@ -272,7 +272,7 @@ def train(config):
   }
 
   # Training.
-  logging.info("Starting training")
+  logging.info("Starting training for %d steps" % config.num_steps)
   with tf.Session() as sess:
 
     sess.run(tf.global_variables_initializer())
