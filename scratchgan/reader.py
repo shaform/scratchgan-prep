@@ -102,32 +102,6 @@ def read_lines(infile):
   return [x.strip() for x in infile]
 
 
-def _integerize_skip_unk(json_data, word_to_id, dataset):
-  """Transform words into integers."""
-  good_data = []
-  for seq in json_data:
-    tokens = tokenize(seq)
-    all_valid = True
-    for word in tokens:
-      if word not in word_to_id:
-        all_valid = False
-        break
-    if all_valid:
-        good_data.append(tokens)
-  sequences = np.full((len(good_data), MAX_TOKENS_SEQUENCE[dataset]),
-                      word_to_id[PAD], np.int32)
-  sequence_lengths = np.zeros(shape=(len(good_data)), dtype=np.int32)
-  for i, tokens in enumerate(good_data):
-    sequence_i = string_sequence_to_sequence(
-        tokens, word_to_id)
-    sequence_lengths[i] = len(sequence_i)
-    sequences[i, :sequence_lengths[i]] = np.array(sequence_i)
-  return {
-      "sequences": sequences,
-      "sequence_lengths": sequence_lengths,
-  }
-
-
 def get_valid_data(data_path, dataset, truncate_vocab=20000):
   if dataset not in FILENAMES:
     raise ValueError("Invalid dataset {}. Valid datasets: {}".format(
@@ -153,8 +127,8 @@ def get_valid_data(data_path, dataset, truncate_vocab=20000):
   }
   logging.info("Truncated vocab length: %d", len(word_to_id_truncated))
 
-  valid_data = _integerize_skip_unk(data_valid, word_to_id_truncated, dataset)
-  test_data = _integerize_skip_unk(data_test, word_to_id_truncated, dataset)
+  valid_data = _integerize(data_valid, word_to_id_truncated, dataset)
+  test_data = _integerize(data_test, word_to_id_truncated, dataset)
   return valid_data, test_data, word_to_id_truncated
 
 
