@@ -13,4 +13,4 @@ with open(sys.argv[1]) as infile:
 
 
 print(best_checkpoint)
-print(line)
+print(best_ppl)
